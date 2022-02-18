@@ -4488,7 +4488,8 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
         status = surface->query(NATIVE_WINDOW_FORMAT, &format);
         ALOGE_IF(status != NO_ERROR, "Unable to query format (%d)", status);
         pixelFormat = static_cast<ui::PixelFormat>(format);
-        if (mUseHwcVirtualDisplays) {
+        if (mVirtualDisplayIdGenerators.hal) {
+            size_t maxVirtualDisplaySize = getHwComposer().getMaxVirtualDisplayDimension();
             if (maxVirtualDisplaySize == 0 ||
                 ((uint64_t)resolution.width <= maxVirtualDisplaySize &&
                  (uint64_t)resolution.height <= maxVirtualDisplaySize)) {
