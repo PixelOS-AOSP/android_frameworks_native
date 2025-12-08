@@ -342,6 +342,8 @@ void VirtualDisplaySurface::onFrameCommitted() {
             Fence::merge("VD Output Acquire/Present", frameInfo.outputFence, presentFence);
 
     mSinkHelper->sendBuffer(frameInfo.outputBuffer, frameInfo.outputFence);
+    // FIX: Pass the merged fence to the sink helper.
+    //mSinkHelper->sendBuffer(frameInfo.outputBuffer, outputFence);
 }
 
 void VirtualDisplaySurface::dumpAsString(String8& result) const {

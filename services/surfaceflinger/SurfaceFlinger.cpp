@@ -704,16 +704,16 @@ std::optional<VirtualDisplayIdVariant> SurfaceFlinger::acquireVirtualDisplay(
         ui::Size resolution, ui::PixelFormat format, const std::string& uniqueId,
         compositionengine::DisplayCreationArgsBuilder& builder, 
         bool canAllocateHwcForVDS) {
-    auto& generator = mVirtualDisplayIdGenerators.hal
-    if (canAllocateHwcForVDS && generator) {
-        if (const auto halIdOpt = generateVirtualDisplayId(*generator)) {
+    auto& halGenerator = mVirtualDisplayIdGenerators.hal;
+    if (canAllocateHwcForVDS && halGenerator) {
+        if (const auto halIdOpt = generateVirtualDisplayId(*halGenerator)) {
             if (getHwComposer().allocateVirtualDisplay(*halIdOpt, resolution, &format) &&
                 acquireVirtualDisplaySnapshot(*halIdOpt, uniqueId)) {
                 builder.setId(*halIdOpt);
                 return *halIdOpt;
             }
 
-            generator->releaseId(*halIdOpt);
+            halGenerator->releaseId(*halIdOpt);
         }
         ALOGW("%s: Falling back to GPU virtual display", __func__);
     }
@@ -4324,7 +4324,7 @@ void SurfaceFlinger::processDisplayAdded(const wp<IBinder>& displayToken,
                 getHwComposer().getMaxLayerPictureProfiles(physical->id));
     } else {
         virtualDisplayIdVariantOpt =
-                acquireVirtualDisplay(resolution, pixelFormat, state.uniqueId, builder
+                acquireVirtualDisplay(resolution, pixelFormat, state.uniqueId, builder,
                     canAllocateHwcForVDS);
         LOG_ALWAYS_FATAL_IF(!virtualDisplayIdVariantOpt);
     }
