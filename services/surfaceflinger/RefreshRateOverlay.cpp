@@ -16,6 +16,10 @@
 
 #include <algorithm>
 
+#include <android-base/file.h>
+#include <android-base/parseint.h>
+#include <android-base/strings.h>
+
 #include <common/FlagManager.h>
 #include "Client.h"
 #include "Layer.h"
@@ -24,6 +28,26 @@
 #include <SkSurface.h>
 
 namespace android {
+
+namespace {
+
+constexpr const char* kTestTePath = "/sys/kernel/oplus_display/test_te";
+
+Fps getRefreshRateForOverlay(Fps fallbackRefreshRate) {
+    std::string rawValue;
+    if (!base::ReadFileToString(kTestTePath, &rawValue)) {
+        return fallbackRefreshRate;
+    }
+
+    int refreshRate = 0;
+    if (!base::ParseInt(base::Trim(rawValue), &refreshRate) || refreshRate <= 0) {
+        return fallbackRefreshRate;
+    }
+
+    return Fps::fromValue(refreshRate);
+}
+
+} // namespace
 
 auto RefreshRateOverlay::draw(int refreshRate, int renderFps, bool idle, SkColor color,
                               ui::Transform::RotationFlags rotation, ftl::Flags<Features> features)
@@ -281,9 +305,10 @@ void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
 }
 
 void RefreshRateOverlay::changeRefreshRate(Fps refreshRate, Fps renderFps) {
-    mRefreshRate = refreshRate;
+    mFallbackRefreshRate = refreshRate;
+    mRefreshRate = getRefreshRateForOverlay(refreshRate);
     mRenderFps = renderFps;
-    const auto buffer = getOrCreateBuffers(refreshRate, renderFps, mIsVrrIdle)[mFrame];
+    const auto buffer = getOrCreateBuffers(*mRefreshRate, renderFps, mIsVrrIdle)[mFrame];
     createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
 }
 
@@ -304,7 +329,21 @@ void RefreshRateOverlay::changeRenderRate(Fps renderFps) {
 }
 
 void RefreshRateOverlay::animate() {
-    if (!mFeatures.test(Features::Spinner) || !mRefreshRate) return;
+    if (!mRefreshRate || !mRenderFps || !mFallbackRefreshRate) return;
+
+    const auto resolvedRefreshRate = getRefreshRateForOverlay(*mFallbackRefreshRate);
+    const bool refreshRateChanged = !isApproxEqual(resolvedRefreshRate, *mRefreshRate);
+    if (refreshRateChanged) {
+        mRefreshRate = resolvedRefreshRate;
+    }
+
+    if (!mFeatures.test(Features::Spinner)) {
+        if (!refreshRateChanged) return;
+
+        const auto buffer = getOrCreateBuffers(*mRefreshRate, *mRenderFps, mIsVrrIdle)[mFrame];
+        createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
+        return;
+    }
 
     const auto& buffers = getOrCreateBuffers(*mRefreshRate, *mRenderFps, mIsVrrIdle);
     mFrame = (mFrame + 1) % buffers.size();

@@ -93,6 +93,7 @@ private:
     BufferCache mBufferCache;
 
     std::optional<Fps> mRefreshRate;
+    std::optional<Fps> mFallbackRefreshRate;
     std::optional<Fps> mRenderFps;
     bool mIsVrrIdle = false;
     size_t mFrame = 0;
