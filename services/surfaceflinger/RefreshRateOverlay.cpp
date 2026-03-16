@@ -15,6 +15,9 @@
  */
 
 #include <algorithm>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 #include <common/FlagManager.h>
 #include "Client.h"
@@ -24,6 +27,13 @@
 #include <SkSurface.h>
 
 namespace android {
+
+namespace {
+
+constexpr const char* kOplusDisplayPath = "/dev/oplus_display";
+constexpr unsigned long kPanelIoctlGetDynamicTe = _IOWR('o', 0x5E, unsigned int);
+
+} // namespace
 
 auto RefreshRateOverlay::draw(int refreshRate, int renderFps, bool idle, SkColor color,
                               ui::Transform::RotationFlags rotation, ftl::Flags<Features> features)
@@ -182,6 +192,10 @@ RefreshRateOverlay::RefreshRateOverlay(ConstructorTag, FpsRange fpsRange,
 }
 
 RefreshRateOverlay::~RefreshRateOverlay() {
+    if (mOplusDisplayFd >= 0) {
+        close(mOplusDisplayFd);
+    }
+
     for (const auto& pair : mBufferCache) {
         for (const sp<GraphicBuffer>& buffer : pair.second) {
             android::removeBufferFromLocalCache(buffer);
@@ -280,10 +294,38 @@ void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
     createTransaction().setLayerStack(mSurfaceControl->get(), stack).apply();
 }
 
+bool RefreshRateOverlay::ensureOplusDisplayReady() {
+    if (mOplusDisplayFd >= 0) {
+        return true;
+    }
+
+    if (mTriedOpeningOplusDisplay) {
+        return false;
+    }
+    mTriedOpeningOplusDisplay = true;
+
+    mOplusDisplayFd = open(kOplusDisplayPath, O_RDWR | O_CLOEXEC);
+    return mOplusDisplayFd >= 0;
+}
+
+Fps RefreshRateOverlay::resolveRefreshRate(Fps fallbackRefreshRate) {
+    if (!ensureOplusDisplayReady()) {
+        return fallbackRefreshRate;
+    }
+
+    unsigned int refreshRate = 0;
+    if (ioctl(mOplusDisplayFd, kPanelIoctlGetDynamicTe, &refreshRate) < 0 || refreshRate == 0) {
+        return fallbackRefreshRate;
+    }
+
+    return Fps::fromValue(static_cast<int>(refreshRate));
+}
+
 void RefreshRateOverlay::changeRefreshRate(Fps refreshRate, Fps renderFps) {
-    mRefreshRate = refreshRate;
+    mFallbackRefreshRate = refreshRate;
+    mRefreshRate = resolveRefreshRate(refreshRate);
     mRenderFps = renderFps;
-    const auto buffer = getOrCreateBuffers(refreshRate, renderFps, mIsVrrIdle)[mFrame];
+    const auto buffer = getOrCreateBuffers(*mRefreshRate, renderFps, mIsVrrIdle)[mFrame];
     createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
 }
 
@@ -304,7 +346,21 @@ void RefreshRateOverlay::changeRenderRate(Fps renderFps) {
 }
 
 void RefreshRateOverlay::animate() {
-    if (!mFeatures.test(Features::Spinner) || !mRefreshRate) return;
+    if (!mRefreshRate || !mRenderFps || !mFallbackRefreshRate) return;
+
+    const auto resolvedRefreshRate = resolveRefreshRate(*mFallbackRefreshRate);
+    const bool refreshRateChanged = !isApproxEqual(resolvedRefreshRate, *mRefreshRate);
+    if (refreshRateChanged) {
+        mRefreshRate = resolvedRefreshRate;
+    }
+
+    if (!mFeatures.test(Features::Spinner)) {
+        if (!refreshRateChanged) return;
+
+        const auto buffer = getOrCreateBuffers(*mRefreshRate, *mRenderFps, mIsVrrIdle)[mFrame];
+        createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
+        return;
+    }
 
     const auto& buffers = getOrCreateBuffers(*mRefreshRate, *mRenderFps, mIsVrrIdle);
     mFrame = (mFrame + 1) % buffers.size();

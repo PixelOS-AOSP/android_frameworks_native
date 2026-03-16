@@ -93,7 +93,10 @@ private:
     BufferCache mBufferCache;
 
     std::optional<Fps> mRefreshRate;
+    std::optional<Fps> mFallbackRefreshRate;
     std::optional<Fps> mRenderFps;
+    int mOplusDisplayFd = -1;
+    bool mTriedOpeningOplusDisplay = false;
     bool mIsVrrIdle = false;
     size_t mFrame = 0;
 
@@ -101,6 +104,9 @@ private:
     const ftl::Flags<Features> mFeatures;
 
     std::unique_ptr<SurfaceControlHolder> mSurfaceControl;
+
+    Fps resolveRefreshRate(Fps);
+    bool ensureOplusDisplayReady();
 };
 
 } // namespace android
