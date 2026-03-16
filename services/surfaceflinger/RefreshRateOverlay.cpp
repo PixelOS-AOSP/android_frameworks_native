@@ -63,8 +63,8 @@ auto RefreshRateOverlay::draw(int refreshRate, int renderFps, bool idle, SkColor
         LOG_ALWAYS_FATAL_IF(bufferStatus != OK, "RefreshRateOverlay: Buffer failed to allocate: %d",
                             bufferStatus);
 
-        sk_sp<SkSurface> surface = SkSurfaces::Raster(
-                SkImageInfo::MakeN32Premul(bufferWidth, bufferHeight));
+        sk_sp<SkSurface> surface =
+                SkSurfaces::Raster(SkImageInfo::MakeN32Premul(bufferWidth, bufferHeight));
         SkCanvas* canvas = surface->getCanvas();
         canvas->setMatrix(canvasTransform);
 
@@ -251,7 +251,8 @@ auto RefreshRateOverlay::getOrCreateBuffers(Fps refreshRate, Fps renderFps, bool
         auto buffers = draw(refreshIntFps, renderIntFps, idle, color, transformHint, mFeatures);
         it = mBufferCache
                      .try_emplace({refreshIntFps, renderIntFps, transformHint, idle},
-                     std::move(buffers)).first;
+                                  std::move(buffers))
+                     .first;
     }
 
     return it->second;
@@ -281,9 +282,13 @@ void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
 }
 
 void RefreshRateOverlay::changeRefreshRate(Fps refreshRate, Fps renderFps) {
+#ifdef OPLUS_ADFR
+    mRefreshRate = mOplusAdfr.setFallbackRefreshRate(refreshRate);
+#else
     mRefreshRate = refreshRate;
+#endif
     mRenderFps = renderFps;
-    const auto buffer = getOrCreateBuffers(refreshRate, renderFps, mIsVrrIdle)[mFrame];
+    const auto buffer = getOrCreateBuffers(*mRefreshRate, renderFps, mIsVrrIdle)[mFrame];
     createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
 }
 
@@ -304,7 +309,21 @@ void RefreshRateOverlay::changeRenderRate(Fps renderFps) {
 }
 
 void RefreshRateOverlay::animate() {
+#ifdef OPLUS_ADFR
+    if (!mRefreshRate || !mRenderFps) return;
+
+    const bool refreshRateChanged = mOplusAdfr.updateRefreshRate(*mRefreshRate);
+
+    if (!mFeatures.test(Features::Spinner)) {
+        if (!refreshRateChanged) return;
+
+        const auto buffer = getOrCreateBuffers(*mRefreshRate, *mRenderFps, mIsVrrIdle)[mFrame];
+        createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
+        return;
+    }
+#else
     if (!mFeatures.test(Features::Spinner) || !mRefreshRate) return;
+#endif
 
     const auto& buffers = getOrCreateBuffers(*mRefreshRate, *mRenderFps, mIsVrrIdle);
     mFrame = (mFrame + 1) % buffers.size();

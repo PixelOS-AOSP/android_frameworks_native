@@ -2936,12 +2936,25 @@ bool SurfaceFlinger::commit(PhysicalDisplayId pacesetterId,
         mPowerAdvisor->updateTargetWorkDuration(idealVsyncPeriod);
     }
 
+#ifdef OPLUS_ADFR
+    {
+        Mutex::Autolock lock(mStateLock);
+        if (mRefreshRateOverlaySpinner || isRefreshRateOverlayEnabled()) {
+            for (const auto& [_, display] : mDisplays) {
+                if (display->isRefreshRateOverlayEnabled()) {
+                    display->animateRefreshRateOverlay();
+                }
+            }
+        }
+    }
+#else
     if (mRefreshRateOverlaySpinner) {
         Mutex::Autolock lock(mStateLock);
         for (const auto& [_, display] : mDisplays) {
             display->animateRefreshRateOverlay();
         }
     }
+#endif
     if (mHdrSdrRatioOverlay) {
         Mutex::Autolock lock(mStateLock);
         for (const auto& [_, display] : mDisplays) {

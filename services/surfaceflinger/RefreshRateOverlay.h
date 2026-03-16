@@ -16,6 +16,9 @@
 
 #pragma once
 
+#ifdef OPLUS_ADFR
+#include "OplusAdfr.h"
+#endif
 #include "Utils/OverlayUtils.h"
 
 #include <vector>
@@ -94,6 +97,9 @@ private:
 
     std::optional<Fps> mRefreshRate;
     std::optional<Fps> mRenderFps;
+#ifdef OPLUS_ADFR
+    OplusAdfr mOplusAdfr;
+#endif
     bool mIsVrrIdle = false;
     size_t mFrame = 0;
 
