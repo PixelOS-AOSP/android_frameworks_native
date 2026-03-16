@@ -281,9 +281,15 @@ void RefreshRateOverlay::setLayerStack(ui::LayerStack stack) {
 }
 
 void RefreshRateOverlay::changeRefreshRate(Fps refreshRate, Fps renderFps) {
+#ifdef OPLUS_ADFR
+    mRefreshRate = mOplusAdfr.setFallbackRefreshRate(refreshRate);
+    const auto buffer = getOrCreateBuffers(*mRefreshRate, renderFps, mIsVrrIdle)[mFrame];
+#else
     mRefreshRate = refreshRate;
     mRenderFps = renderFps;
     const auto buffer = getOrCreateBuffers(refreshRate, renderFps, mIsVrrIdle)[mFrame];
+#endif
+    const auto buffer = getOrCreateBuffers(*mRefreshRate, renderFps, mIsVrrIdle)[mFrame];
     createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
 }
 
@@ -304,7 +310,21 @@ void RefreshRateOverlay::changeRenderRate(Fps renderFps) {
 }
 
 void RefreshRateOverlay::animate() {
+#ifdef OPLUS_ADFR
+    if (!mRefreshRate || !mRenderFps) return;
+
+    const bool refreshRateChanged = mOplusAdfr.updateRefreshRate(*mRefreshRate);
+
+    if (!mFeatures.test(Features::Spinner)) {
+        if (!refreshRateChanged) return;
+
+        const auto buffer = getOrCreateBuffers(*mRefreshRate, *mRenderFps, mIsVrrIdle)[mFrame];
+        createTransaction().setBuffer(mSurfaceControl->get(), buffer).apply();
+        return;
+    }
+#else
     if (!mFeatures.test(Features::Spinner) || !mRefreshRate) return;
+#endif
 
     const auto& buffers = getOrCreateBuffers(*mRefreshRate, *mRenderFps, mIsVrrIdle);
     mFrame = (mFrame + 1) % buffers.size();
