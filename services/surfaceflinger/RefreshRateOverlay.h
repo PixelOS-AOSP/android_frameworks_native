@@ -26,6 +26,7 @@
 #include <ui/Size.h>
 #include <ui/Transform.h>
 #include <utils/StrongPointer.h>
+#include <utils/Timers.h>
 
 #include <scheduler/Fps.h>
 
@@ -64,6 +65,10 @@ public:
     RefreshRateOverlay(ConstructorTag, FpsRange, ftl::Flags<Features>);
 
 private:
+    static constexpr nsecs_t kOplusQueryIntervalNs = 150'000'000LL; // 150ms
+    static constexpr int kMaxOplusDisplayOpenRetries = 5;
+    nsecs_t mLastOplusQueryNs = 0;
+    std::optional<Fps> mCachedOplusFps;
     bool initCheck() const;
 
     using Buffers = std::vector<sp<GraphicBuffer>>;
@@ -93,7 +98,11 @@ private:
     BufferCache mBufferCache;
 
     std::optional<Fps> mRefreshRate;
+    std::optional<Fps> mFallbackRefreshRate;
     std::optional<Fps> mRenderFps;
+    int mOplusDisplayFd = -1;
+    int mOplusDisplayOpenAttempts = 0;
+    bool mSkipNextAnimateRefreshRateResolve = false;
     bool mIsVrrIdle = false;
     size_t mFrame = 0;
 
@@ -101,6 +110,9 @@ private:
     const ftl::Flags<Features> mFeatures;
 
     std::unique_ptr<SurfaceControlHolder> mSurfaceControl;
+
+    Fps resolveRefreshRate(Fps);
+    bool ensureOplusDisplayReady();
 };
 
 } // namespace android
