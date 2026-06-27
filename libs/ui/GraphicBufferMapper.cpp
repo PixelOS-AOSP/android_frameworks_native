@@ -22,7 +22,7 @@
 
 #include <grallocusage/GrallocUsageConversion.h>
 
-#include <com_android_graphics_libui_flags.h>
+
 
 // We would eliminate the non-conforming zero-length array, but we can't since
 // this is effectively included from the Linux kernel
@@ -44,7 +44,7 @@
 #include <system/graphics.h>
 
 using unique_fd = ::android::base::unique_fd;
-using namespace com::android::graphics::libui;
+
 
 namespace android {
 // ---------------------------------------------------------------------------
@@ -53,15 +53,11 @@ using LockResult = GraphicBufferMapper::LockResult;
 
 ANDROID_SINGLETON_STATIC_INSTANCE( GraphicBufferMapper )
 
-static bool requireMapper4() {
-    return false;
-}
+
 
 void GraphicBufferMapper::preloadHal() {
-    if (!requireMapper4()) {
-        Gralloc2Mapper::preload();
-        Gralloc3Mapper::preload();
-    }
+    Gralloc2Mapper::preload();
+    Gralloc3Mapper::preload();
     Gralloc4Mapper::preload();
     Gralloc5Mapper::preload();
 }
@@ -77,17 +73,15 @@ GraphicBufferMapper::GraphicBufferMapper() {
         mMapperVersion = Version::GRALLOC_4;
         return;
     }
-    if (!requireMapper4()) {
-        mMapper = std::make_unique<const Gralloc3Mapper>();
-        if (mMapper->isLoaded()) {
-            mMapperVersion = Version::GRALLOC_3;
-            return;
-        }
-        mMapper = std::make_unique<const Gralloc2Mapper>();
-        if (mMapper->isLoaded()) {
-            mMapperVersion = Version::GRALLOC_2;
-            return;
-        }
+    mMapper = std::make_unique<const Gralloc3Mapper>();
+    if (mMapper->isLoaded()) {
+        mMapperVersion = Version::GRALLOC_3;
+        return;
+    }
+    mMapper = std::make_unique<const Gralloc2Mapper>();
+    if (mMapper->isLoaded()) {
+        mMapperVersion = Version::GRALLOC_2;
+        return;
     }
 
     LOG_ALWAYS_FATAL("gralloc-mapper is missing");
