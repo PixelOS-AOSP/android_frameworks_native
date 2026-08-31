@@ -34,6 +34,23 @@
       "parentUuid": "02c65ab7_2680ee8d",
       "revId": "40bf6791699cba8a9ef863dade4c761756f1f7aa",
       "serverId": "58543e18-2196-4633-8043-7787712585ad"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "4518afde_4bb19764",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 1000003
+      },
+      "writtenOn": "2026-08-31T12:18:52Z",
+      "side": 1,
+      "message": "https://review.pixelos.net/c/PixelOS-AOSP/android_frameworks_native/+/10622/comments/2d6c132a_cd2eb51d",
+      "revId": "40bf6791699cba8a9ef863dade4c761756f1f7aa",
+      "serverId": "58543e18-2196-4633-8043-7787712585ad"
     }
   ]
 }
